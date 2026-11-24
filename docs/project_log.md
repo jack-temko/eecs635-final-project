@@ -45,6 +45,7 @@ Newest entries go at the bottom of each section. Dates are when the work was don
 | Text lines with hex payload over serial | Easy to parse and debug, robust to resync after corruption; ~30 KB/s is fine for USB |
 | Amplitude only (no phase) | ESP32 phase has per-packet random offsets (CFO/timing); amplitude is usable as-is. Phase sanitization is a possible later improvement |
 | Phone–antenna distance ~34 cm | Classroom session at 34 cm gave 3.3× gesture/still motion vs 1.8× in the first session; stronger hand effect relative to the room |
+| Recordings kept in the git repo (`data/<person>/<session>/`) | Easiest way for the team to share data; ~10 MB per session (~4 MB compressed in git). Move to Git LFS or a shared drive past ~30 sessions. `data/** -diff` in `.gitattributes` avoids huge text diffs |
 | Gestures defined relative to the phone–antenna line | Swipe crosses it once, push stays in it, circle crosses it repeatedly → distinct temporal signatures |
 
 ## Experiments
