@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.png binary
+# recordings are big generated text: no line diffs
+data/** -diff

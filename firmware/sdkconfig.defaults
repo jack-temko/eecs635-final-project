@@ -1,0 +1,8 @@
+# Required: turn on Channel State Information in the Wi-Fi driver
+CONFIG_ESP_WIFI_CSI_ENABLED=y
+# Fast serial for the UART port (USB-Serial/JTAG ignores baud)
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
+CONFIG_FREERTOS_HZ=1000
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+# XIAO ESP32S3 has no USB-UART chip: make native USB the console
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

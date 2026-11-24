@@ -1,0 +1,32 @@
+{
+  "person": "Jack",
+  "location": "eecs 635 classroom, half capacity",
+  "distance_cm": 34,
+  "notes": "",
+  "reps": 8,
+  "holds": true,
+  "port": "COM11",
+  "demo": false,
+  "start_time": "2026-11-24 09:44:37",
+  "gestures": {
+    "swipe": "Hand crosses the phone-antenna line once, sideways",
+    "push": "Hand IN the line, palm to antenna: move toward it and back",
+    "circle": "One circle centered on the line, like drawing on a window",
+    "none": "Control trial: hand in your lap, don't move"
+  },
+  "timing": {
+    "ready_s": 2.0,
+    "go_s": 2.0,
+    "rest_s": 2.0
+  },
+  "end_time": "2026-11-24 09:49:32",
+  "packets": 29428,
+  "ok_trials": {
+    "hold": 3,
+    "none": 8,
+    "circle": 8,
+    "push": 8,
+    "swipe": 8
+  },
+  "redo_or_aborted": 0
+}

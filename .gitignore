@@ -1,0 +1,15 @@
+# PlatformIO / ESP-IDF build output
+.pio/
+firmware/sdkconfig.*
+!firmware/sdkconfig.defaults
+
+# Wi-Fi credentials - never commit. Copy secrets.example.h to secrets.h instead.
+firmware/src/secrets.h
+
+# Editor / Python
+.vscode/
+__pycache__/
+*.log
+
+# Recorder's per-computer setup memory
+data/.last_setup.json

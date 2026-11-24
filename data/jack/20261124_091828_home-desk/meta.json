@@ -1,0 +1,9 @@
+{
+  "person": "Jack",
+  "location": "home desk",
+  "distance_cm": null,
+  "notes": "First session, recorded with the old terminal recorder (audio beeps only, which were inaudible), so gesture timing is loose. No trials.csv; trial ids are in csi.csv.",
+  "reps": 8,
+  "holds": true,
+  "start_time": "2026-11-24 09:18:28"
+}
