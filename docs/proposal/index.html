@@ -88,6 +88,16 @@
     font: 15px/1.5 var(--sans); color: var(--muted); background: #fff;
   }
 
+
+  table.budget { width: 100%; border-collapse: collapse; margin: 28px 0 8px; font: 14.5px/1.45 var(--sans); }
+  table.budget th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; padding: 0 12px 10px 0; border-bottom: 1.5px solid var(--ink); }
+  table.budget td { padding: 11px 12px 11px 0; border-bottom: 1px solid var(--rule); vertical-align: top; color: var(--body); }
+  table.budget td:first-child { font-weight: 600; color: var(--ink); white-space: nowrap; }
+  table.budget td:last-child { color: var(--teal); font-weight: 500; }
+  ol.steps { padding-left: 1.3em; margin: 0 0 1.15em; }
+  ol.steps li { margin-bottom: .6em; padding-left: .2em; }
+  ol.steps li::marker { color: var(--clay); font: 600 16px var(--sans); }
+
   footer {
     margin-top: 90px; padding-top: 22px; border-top: 1px solid var(--rule);
     font: 14px/1.6 var(--sans); color: var(--muted);
@@ -122,9 +132,11 @@
 </header>
 
 <p class="lede">WaveSense is a music controller you use by moving your hand between two small
-Wi-Fi boards. One board sends packets, the other measures how your hand changed them, and a model on
-that board picks the gesture. Our prototype gets 88% on three gestures within one recording session,
-but only about 55% on a new one. Fixing that is the project.</p>
+Wi-Fi boards. One board sends packets and the other measures how your hand changed them. For this class
+the goal is to run the whole recognizer on that receiver, a thumb-sized ESP32-S3 with 512&nbsp;KB of RAM,
+with no laptop in the loop. Our prototype already gets 88% within one recording session, but it runs in
+Python on a laptop and drops to about 55% on a new session. Getting it onto the board and working across
+sessions is the project.</p>
 
 <h2><span class="num">01</span>How Wi-Fi sees a hand</h2>
 
@@ -216,52 +228,141 @@ wavelength, a few centimeters of movement is enough to see.</p>
   (b, c) Two seconds with nobody moving, and with a hand moving in circles.</figcaption>
 </figure>
 
-<h2><span class="num">02</span>What we're building</h2>
+<h2><span class="num">02</span>What runs on the board</h2>
 
-<p>A transmitter board sends 100 packets a second to a receiver 34&nbsp;cm away. The receiver
-recognizes three gestures: a <b>swipe</b> for next track, a <b>swipe and back</b> for previous, and a
-held <b>palm</b> to pause. Left and right swipes look the same to a single link, so our gestures differ
-in shape instead. The model has to run on the ESP32-S3 in real time and ignore people just moving
-around.</p>
+<p>WaveSense recognizes three gestures: a <b>swipe</b> for next track, a <b>swipe and back</b> for
+previous, and a held <b>palm</b> to pause. Left and right swipes look the same to a single link, so the
+gestures differ in shape instead.</p>
+
+<p>Right now the receiver only measures. Its CSI callback copies each packet into a queue, a second
+task formats it, and USB carries it to a laptop where Python does the classifying (Figure&nbsp;3, top).
+The goal is the bottom row. The board keeps the last two seconds in a ring buffer, and a cheap motion
+check runs on every packet. Only when that check fires does a small int8 network look at the window.
+The answer goes out as a media key over Bluetooth.</p>
+
+<figure class="wide">
+<svg viewBox="0 0 720 262" role="img" aria-label="Diagram: today the board streams CSI to a laptop for classification; the goal is a ring buffer, motion gate, int8 network and Bluetooth output all on the board" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="pa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#667085"/>
+    </marker>
+  </defs>
+  <style>
+    .t { font-size: 12px; font-weight: 700; fill: #1d2433; text-anchor: middle; }
+    .s { font-size: 10.5px; fill: #667085; text-anchor: middle; }
+    .row { font-size: 13px; font-weight: 700; fill: #1d2433; }
+    .reg { font-size: 10.5px; font-weight: 600; fill: #12636b; letter-spacing: .04em; }
+    .done { fill: #fff; stroke: #1d2433; stroke-width: 1.4; }
+    .plan { fill: #fff; stroke: #d1603d; stroke-width: 1.6; stroke-dasharray: 5 3; }
+    .ar { stroke: #667085; stroke-width: 1.4; marker-end: url(#pa); }
+  </style>
+
+  <text class="row" x="2" y="15">Today: the board measures, a laptop decides</text>
+  <rect x="0" y="26" width="288" height="88" rx="10" fill="#e9f1f0"/>
+  <text class="reg" x="10" y="108">ON THE ESP32-S3</text>
+  <rect class="done" x="6"   y="36" width="124" height="54" rx="7"/>
+  <text class="t" x="68"  y="59">CSI callback</text><text class="s" x="68"  y="76">100 Hz × 52 values</text>
+  <rect class="done" x="152" y="36" width="124" height="54" rx="7"/>
+  <text class="t" x="214" y="59">Queue + print task</text><text class="s" x="214" y="76">keeps Wi-Fi task free</text>
+  <rect class="done" x="298" y="36" width="124" height="54" rx="7"/>
+  <text class="t" x="360" y="59">USB serial</text><text class="s" x="360" y="76">hex text, ~30 KB/s</text>
+  <rect class="done" x="444" y="36" width="124" height="54" rx="7"/>
+  <text class="t" x="506" y="59">Python on laptop</text><text class="s" x="506" y="76">features + classifier</text>
+  <line class="ar" x1="130" y1="63" x2="150" y2="63"/>
+  <line class="ar" x1="276" y1="63" x2="296" y2="63"/>
+  <line class="ar" x1="422" y1="63" x2="442" y2="63"/>
+
+  <text class="row" x="2" y="152">Goal: the board does everything</text>
+  <rect x="0" y="163" width="580" height="88" rx="10" fill="#e9f1f0"/>
+  <text class="reg" x="10" y="245">ON THE ESP32-S3</text>
+  <rect class="done" x="6"   y="173" width="124" height="54" rx="7"/>
+  <text class="t" x="68"  y="196">CSI callback</text><text class="s" x="68"  y="213">100 Hz × 52 values</text>
+  <rect class="plan" x="152" y="173" width="124" height="54" rx="7"/>
+  <text class="t" x="214" y="196">Ring buffer</text><text class="s" x="214" y="213">last 2 s, 10 KB int8</text>
+  <rect class="plan" x="298" y="173" width="124" height="54" rx="7"/>
+  <text class="t" x="360" y="196">Motion gate</text><text class="s" x="360" y="213">cheap, every packet</text>
+  <rect class="plan" x="444" y="173" width="124" height="54" rx="7"/>
+  <text class="t" x="506" y="196">int8 1D CNN</text><text class="s" x="506" y="213">runs only on motion</text>
+  <rect class="plan" x="590" y="173" width="124" height="54" rx="7"/>
+  <text class="t" x="652" y="196">Media key</text><text class="s" x="652" y="213">over Bluetooth</text>
+  <line class="ar" x1="130" y1="200" x2="150" y2="200"/>
+  <line class="ar" x1="276" y1="200" x2="296" y2="200"/>
+  <line class="ar" x1="422" y1="200" x2="442" y2="200"/>
+  <line class="ar" x1="568" y1="200" x2="588" y2="200"/>
+
+  <rect class="done" x="604" y="36" width="18" height="12" rx="3"/><text x="628" y="46" font-size="10.5" fill="#667085">working</text>
+  <rect class="plan" x="604" y="58" width="18" height="12" rx="3"/><text x="628" y="68" font-size="10.5" fill="#667085">to build</text>
+</svg>
+<figcaption><b>Figure 3.</b> Where the work happens now (top) and where it has to happen by the end of
+the term (bottom).</figcaption>
+</figure>
+
+<p>The hard part is fitting all of this next to the Wi-Fi stack, which shares the same memory and has
+to keep receiving 100 packets a second while the model runs. Our plan is to leave Wi-Fi on one core and
+put inference on the other. These are the budgets we're aiming for:</p>
+
+<table class="budget">
+  <thead><tr><th></th><th>XIAO ESP32-S3 has</th><th>WaveSense budget</th></tr></thead>
+  <tbody>
+    <tr><td>RAM</td><td>512 KB SRAM, shared with Wi-Fi</td><td>&le; 150 KB for buffer and tensor arena</td></tr>
+    <tr><td>Flash</td><td>8 MB</td><td>&le; 200 KB model after int8 quantization</td></tr>
+    <tr><td>Compute</td><td>2 cores at up to 240 MHz, with SIMD</td><td>&le; 50 ms per inference, on the second core</td></tr>
+    <tr><td>Input</td><td>100 packets/s &times; 52 subcarriers</td><td>2 s window = 10.4 KB as int8</td></tr>
+  </tbody>
+</table>
 
 <h2><span class="num">03</span>What works so far</h2>
 
-<p>The firmware streams CSI at the full 100 packets per second. We designed a 3D-printed stand that
-holds the antennas in the same spot every session (Figure&nbsp;3), and a recording app that shows an
-animated hand to follow and labels every trial (Figure&nbsp;4).</p>
+<p>The receiver firmware is written in ESP-IDF and streams CSI at the full 100 packets per second.
+Getting there took some work. The default USB console polls a 64-byte FIFO and only let about 40
+packets a second through, so we moved formatting out of the Wi-Fi callback into its own task and gave
+the USB driver a 16 KB buffer. We also wrote firmware for a second board that broadcasts ESP-NOW packets
+at 100 Hz. It will replace the phone hotspot we've recorded with so far.</p>
+
+<p>To keep sessions comparable, we designed a 3D-printed stand with no metal parts that holds both
+antennas in the same spot every time (Figure&nbsp;4), and a recording app that shows an animated hand to
+follow and labels every trial (Figure&nbsp;5).</p>
 
 <figure class="narrow">
   <img src="fig/fixture.png" alt="3D render of the two-part printed stand holding the receiver and transmitter towers 34 cm apart">
-  <figcaption><b>Figure 3.</b> The 3D-printed stand. Receiver on the left, transmitter on the right.</figcaption>
+  <figcaption><b>Figure 4.</b> The 3D-printed stand. Receiver on the left, transmitter on the right.</figcaption>
 </figure>
 
 <figure class="wide card">
   <img src="fig/recorder.png" alt="Two screens of the recording app: a gray countdown screen and a green recording screen with an animated hand">
-  <figcaption><b>Figure 4.</b> The recording app: the countdown before a trial (left) and recording (right).</figcaption>
+  <figcaption><b>Figure 5.</b> The recording app: the countdown before a trial (left) and recording (right).</figcaption>
 </figure>
 
-<p>Each gesture leaves a different mark in the CSI (Figure&nbsp;5).</p>
+<p>Each gesture leaves a different mark in the CSI (Figure&nbsp;6).</p>
 
 <figure class="wide">
   <img src="fig/gestures.png" alt="Heatmaps of CSI change for swipe, swipe and back, palm hold, and other motion">
-  <figcaption><b>Figure 5.</b> One trial of each class, starting just before the motion.</figcaption>
+  <figcaption><b>Figure 6.</b> One trial of each class, starting just before the motion.</figcaption>
 </figure>
 
-<p>Simple classifiers get 71&ndash;88% within a session but only 54&ndash;58% on a different one
-(Figure&nbsp;6). Our newest session scored lower partly because it recorded at half the usual packet
-rate.</p>
+<p>Simple classifiers on laptop-side features get 71&ndash;88% within a session but only 54&ndash;58%
+on a different one (Figure&nbsp;7). That tells us the signal is there. It doesn't tell us anything fits
+on the board yet.</p>
 
 <figure class="wide">
   <img src="fig/results.png" alt="Bar chart of three-gesture accuracy within sessions and across sessions">
-  <figcaption><b>Figure 6.</b> Three-gesture accuracy (chance is 33%). The first two sessions used an
-  earlier gesture set.</figcaption>
+  <figcaption><b>Figure 7.</b> Three-gesture accuracy, computed on a laptop (chance is 33%). The first two
+  sessions used an earlier gesture set, and the apartment session recorded at half the usual packet rate.</figcaption>
 </figure>
 
 <h2><span class="num">04</span>What's next</h2>
 
-<p>Consistency is the hard part. Next we swap the phone hotspot we've been recording with for a
-dedicated ESP32 transmitter, record many more sessions across all four of us, and train a small neural
-network that fits on the ESP32-S3.</p>
+<ol class="steps">
+  <li><b>Record more.</b> Many sessions across all four of us, with the ESP32 transmitter and the stand.</li>
+  <li><b>Train small.</b> A 1D CNN on 52&nbsp;&times;&nbsp;200 windows, quantized to int8 and checked
+  against the float version so we know what quantization costs.</li>
+  <li><b>Deploy.</b> Run it with TensorFlow Lite Micro and Espressif's optimized kernels, add the motion
+  gate, then measure latency, RAM, flash and power on the board and count false triggers while people
+  walk around.</li>
+</ol>
+
+<p>We'll grade ourselves on one number above all: accuracy on a new session with the model running on
+the ESP32-S3.</p>
 
 <footer>EECS 635, Embedded Machine Learning &middot;
 <a href="https://github.com/jack-temko/eecs635-final-project">Project repository</a></footer>
