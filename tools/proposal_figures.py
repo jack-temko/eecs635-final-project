@@ -27,6 +27,7 @@ INK, MUTED, ACCENT, ACCENT2 = "#1d2433", "#667085", "#d1603d", "#12636b"
 from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
 DIVERGE = LinearSegmentedColormap.from_list("teal_clay", ["#0b3f45", "#12636b", "#8fc1c0", "#fbfaf7",
                                                           "#f0b49a", "#d1603d", "#8a3216"])
+SEQ = LinearSegmentedColormap.from_list("paper_teal", ["#fbfaf7", "#8fc1c0", "#12636b", "#0b2a30"])
 plt.rcParams.update({
     "font.family": ["Inter", "Segoe UI", "DejaVu Sans"], "font.size": 10, "axes.edgecolor": "#9ca3af",
     "axes.labelcolor": INK, "xtick.color": MUTED, "ytick.color": MUTED,
@@ -194,6 +195,40 @@ def fig_results(results):
     plt.close(fig)
 
 
+def fig_window(s):
+    """One CNN input window (52 subcarriers x 200 packets): normalized amplitude, then change from start."""
+    trs = [t for t in s.trials if t["label"] == "swipe"]
+    for t in trs:
+        t["onset"], _ = find_onset(s, t)
+    trs = [t for t in trs if t["onset"] is not None]
+    sc = [s.motion[s.idx(t["onset"] - 0.2, t["onset"] + 1.8)].mean() for t in trs]
+    t = trs[int(np.argsort(sc)[int(0.75 * (len(sc) - 1))])]
+    i0 = s.idx(t["onset"] - 0.2, t["onset"] + 1.8)[0]      # window opens 0.2 s before the motion
+    w = s.amp[i0:i0 + 200]
+    fig = plt.figure(figsize=(11, 3.0))
+    gs = fig.add_gridspec(1, 4, width_ratios=[1, 0.035, 1, 0.035], wspace=0.28)
+    ax = fig.add_subplot(gs[0])
+    im = ax.imshow(w.T, aspect="auto", origin="lower", cmap=SEQ, vmin=0.4, vmax=1.6, extent=[0, 200, 0, 52])
+    ax.set_title("(a) Amplitude, per-packet gain removed")
+    ax.set_xlabel("packet (100 per second)")
+    ax.set_ylabel("subcarrier")
+    cb = fig.colorbar(im, cax=fig.add_subplot(gs[1]))
+    cb.outline.set_visible(False)
+    ax = fig.add_subplot(gs[2])
+    im = ax.imshow((w - w[:10].mean(0)).T, aspect="auto", origin="lower", cmap=DIVERGE, vmin=-0.4, vmax=0.4,
+                   extent=[0, 200, 0, 52])
+    ax.set_title("(b) Change from the first 0.1 s: what the CNN sees")
+    ax.set_xlabel("packet (100 per second)")
+    ax.set_yticklabels([])
+    cb = fig.colorbar(im, cax=fig.add_subplot(gs[3]))
+    cb.outline.set_visible(False)
+    for a in fig.axes[::2]:
+        for sp in a.spines.values():
+            sp.set_visible(False)
+    fig.savefig(os.path.join(OUT, "window.png"), dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 # 3-gesture accuracy (%), from tools/analyze_session.py; see docs/project_log.md
 RESULTS = [
     ("Home\n(swipe/push/circle)", 71, "within"),
@@ -208,6 +243,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     fig_csi_example(Session(CLASSROOM))
     fig_gestures(Session(APARTMENT))
+    fig_window(Session(CLASSROOM))
     fig_fixture()
     fig_results(RESULTS)
     if len(sys.argv) > 1:          # folder of recorder screenshots (record_session.py --screenshots)

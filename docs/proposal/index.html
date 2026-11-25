@@ -311,6 +311,103 @@ put inference on the other. These are the budgets we're aiming for:</p>
   </tbody>
 </table>
 
+<h3>What the model sees</h3>
+
+<p>Each input is a 52&nbsp;&times;&nbsp;200 grid: 52 subcarriers by 200 packets, which is two seconds
+at 100 packets a second (Figure&nbsp;4). The board builds it in four steps. First it turns each packet's
+complex CSI into 52 amplitudes, dropping the empty slots at the band edges and center. Then it divides
+each packet by its own average, which cancels the jumps from the radio's automatic gain control. When the
+motion gate fires, it copies the 200 packets starting 0.2&nbsp;s before the motion. Last, it subtracts
+the average of the first ten packets, so the window shows how the channel changed instead of what the
+room looks like. That last step is our main bet for new sessions. Every room has a different static
+pattern, but a hand should change it in a similar way. Scaled to int8, a window is 10.4&nbsp;KB.</p>
+
+<figure class="wide">
+  <img src="fig/window.png" alt="Two heatmaps of one 52 by 200 swipe window: normalized amplitude, and change from the first 0.1 seconds">
+  <figcaption><b>Figure 4.</b> One swipe window from our classroom session. (a) Amplitude after removing
+  per-packet gain. The bands are the room's multipath pattern. (b) The same window minus its first 0.1&nbsp;s,
+  which is what the network gets. The hand enters around packet 20.</figcaption>
+</figure>
+
+<h3>The network</h3>
+
+<p>We treat the 52 subcarriers as input channels and convolve along time only. Neighboring subcarriers
+move together and a gesture is a shape in time, so a 1D network gets what matters for far less compute
+than a 2D one (Figure&nbsp;5). Four convolution layers with ReLU, three of them with stride 2, shrink
+the window from 200 time steps to 25 while widening to 64 channels. Global average pooling then throws
+away the exact timing, and one dense layer scores four classes: swipe, swipe and back, palm, and other
+motion. Batch norm gets folded into the convolutions on export.</p>
+
+<figure class="wide">
+<svg viewBox="0 0 720 250" role="img" aria-label="Diagram of the 1D CNN: input 200 by 52, four convolution layers down to 25 by 64, global average pooling to 64, dense layer to 4 classes" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="na" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#667085"/>
+    </marker>
+  </defs>
+  <style>
+    .op { font-size: 10.5px; fill: #1d2433; font-weight: 600; text-anchor: middle; }
+    .ops { font-size: 10px; fill: #667085; text-anchor: middle; }
+    .shp { font-size: 11px; fill: #1d2433; text-anchor: middle; font-weight: 600; }
+    .prm { font-size: 10.5px; fill: #d1603d; text-anchor: middle; }
+    .lab { font-size: 10.5px; fill: #667085; }
+    .act { fill: #8fc1c0; stroke: #12636b; stroke-width: 1.2; }
+    .inp { fill: #f6dccf; stroke: #d1603d; stroke-width: 1.2; }
+    .ar2 { stroke: #667085; stroke-width: 1.3; marker-end: url(#na); }
+  </style>
+
+  <rect class="inp" x="27" y="30" width="26" height="160" rx="2"/>
+  <rect class="act" x="137" y="70" width="16" height="80" rx="2"/>
+  <rect class="act" x="237" y="90" width="16" height="40" rx="2"/>
+  <rect class="act" x="334" y="100" width="32" height="20" rx="2"/>
+  <rect class="act" x="444" y="100" width="32" height="20" rx="2"/>
+  <rect class="act" x="554" y="107" width="32" height="6" rx="1.5"/>
+  <rect class="act" x="657" y="98" width="6" height="24" rx="1.5" fill="#d1603d" stroke="#d1603d"/>
+
+  <line class="ar2" x1="59" y1="110" x2="131" y2="110"/>
+  <text class="op" x="95" y="96">conv k5</text><text class="ops" x="95" y="132">stride 2</text>
+  <line class="ar2" x1="159" y1="110" x2="231" y2="110"/>
+  <text class="op" x="195" y="96">conv k5</text><text class="ops" x="195" y="132">stride 2</text>
+  <line class="ar2" x1="259" y1="110" x2="328" y2="110"/>
+  <text class="op" x="294" y="96">conv k3</text><text class="ops" x="294" y="132">stride 2</text>
+  <line class="ar2" x1="372" y1="110" x2="438" y2="110"/>
+  <text class="op" x="405" y="96">conv k3</text><text class="ops" x="405" y="132">stride 1</text>
+  <line class="ar2" x1="482" y1="110" x2="548" y2="110"/>
+  <text class="op" x="515" y="96">global</text><text class="ops" x="515" y="132">avg pool</text>
+  <line class="ar2" x1="592" y1="110" x2="651" y2="110"/>
+  <text class="op" x="621" y="96">dense</text><text class="ops" x="621" y="132">softmax</text>
+
+  <text class="shp" x="40"  y="212">200 × 52</text>
+  <text class="shp" x="145" y="212">100 × 32</text>
+  <text class="shp" x="245" y="212">50 × 32</text>
+  <text class="shp" x="350" y="212">25 × 64</text>
+  <text class="shp" x="460" y="212">25 × 64</text>
+  <text class="shp" x="570" y="212">64</text>
+  <text class="shp" x="660" y="212">4</text>
+
+  <text class="prm" x="40"  y="232">input</text>
+  <text class="prm" x="145" y="232">8.4k</text>
+  <text class="prm" x="245" y="232">5.2k</text>
+  <text class="prm" x="350" y="232">6.2k</text>
+  <text class="prm" x="460" y="232">12.4k</text>
+  <text class="prm" x="570" y="232">0</text>
+  <text class="prm" x="660" y="232">0.3k</text>
+
+  <text class="lab" x="62" y="40">time ↕</text>
+  <text class="lab" x="62" y="54">channels ↔</text>
+  <text class="lab" x="672" y="114">class</text>
+  <text class="lab" x="672" y="127">scores</text>
+</svg>
+<figcaption><b>Figure 5.</b> The proposed network. Each block's height is time steps and its width is
+channels. Black numbers are output shapes (time &times; channels) and orange numbers are weights per layer.</figcaption>
+</figure>
+
+<p>That comes to about 32,000 weights, or 32&nbsp;KB as int8, and about 1.5 million multiply-adds per
+window. The largest pair of activations alive at once is about 14&nbsp;KB. That's well under the budgets
+above, so there's room to grow the network if accuracy needs it. We'll train with random time shifts,
+amplitude scaling and dropped subcarriers. If plain post-training int8 quantization costs more than a
+couple of points, we'll switch to quantization-aware training.</p>
+
 <h2><span class="num">03</span>What works so far</h2>
 
 <p>The receiver firmware is written in ESP-IDF and streams CSI at the full 100 packets per second.
@@ -320,33 +417,33 @@ the USB driver a 16 KB buffer. We also wrote firmware for a second board that br
 at 100 Hz. It will replace the phone hotspot we've recorded with so far.</p>
 
 <p>To keep sessions comparable, we designed a 3D-printed stand with no metal parts that holds both
-antennas in the same spot every time (Figure&nbsp;4), and a recording app that shows an animated hand to
-follow and labels every trial (Figure&nbsp;5).</p>
+antennas in the same spot every time (Figure&nbsp;6), and a recording app that shows an animated hand to
+follow and labels every trial (Figure&nbsp;7).</p>
 
 <figure class="narrow">
   <img src="fig/fixture.png" alt="3D render of the two-part printed stand holding the receiver and transmitter towers 34 cm apart">
-  <figcaption><b>Figure 4.</b> The 3D-printed stand. Receiver on the left, transmitter on the right.</figcaption>
+  <figcaption><b>Figure 6.</b> The 3D-printed stand. Receiver on the left, transmitter on the right.</figcaption>
 </figure>
 
 <figure class="wide card">
   <img src="fig/recorder.png" alt="Two screens of the recording app: a gray countdown screen and a green recording screen with an animated hand">
-  <figcaption><b>Figure 5.</b> The recording app: the countdown before a trial (left) and recording (right).</figcaption>
+  <figcaption><b>Figure 7.</b> The recording app: the countdown before a trial (left) and recording (right).</figcaption>
 </figure>
 
-<p>Each gesture leaves a different mark in the CSI (Figure&nbsp;6).</p>
+<p>Each gesture leaves a different mark in the CSI (Figure&nbsp;8).</p>
 
 <figure class="wide">
   <img src="fig/gestures.png" alt="Heatmaps of CSI change for swipe, swipe and back, palm hold, and other motion">
-  <figcaption><b>Figure 6.</b> One trial of each class, starting just before the motion.</figcaption>
+  <figcaption><b>Figure 8.</b> One trial of each class, starting just before the motion.</figcaption>
 </figure>
 
 <p>Simple classifiers on laptop-side features get 71&ndash;88% within a session but only 54&ndash;58%
-on a different one (Figure&nbsp;7). That tells us the signal is there. It doesn't tell us anything fits
+on a different one (Figure&nbsp;9). That tells us the signal is there. It doesn't tell us anything fits
 on the board yet.</p>
 
 <figure class="wide">
   <img src="fig/results.png" alt="Bar chart of three-gesture accuracy within sessions and across sessions">
-  <figcaption><b>Figure 7.</b> Three-gesture accuracy, computed on a laptop (chance is 33%). The first two
+  <figcaption><b>Figure 9.</b> Three-gesture accuracy, computed on a laptop (chance is 33%). The first two
   sessions used an earlier gesture set, and the apartment session recorded at half the usual packet rate.</figcaption>
 </figure>
 

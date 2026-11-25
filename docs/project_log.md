@@ -119,6 +119,8 @@ Short blog-style proposal page at `docs/proposal/index.html`; figures regenerate
 
 Revised the same day to center the embedded side: a "today vs goal" pipeline diagram (CSI callback → ring buffer → motion gate → int8 1D CNN → Bluetooth media key, all on the receiver) and target budgets of ≤150 KB RAM for buffer + tensor arena, ≤200 KB int8 model in flash, ≤50 ms per inference on the second core (Wi-Fi on the other). These budgets are our targets, not measurements. Note the receiver currently runs at 160 MHz with PSRAM disabled (`sdkconfig.rx`); 240 MHz and the 8 MB PSRAM are headroom if needed.
 
+Added the model design to the proposal (same day): input is a 52 × 200 window (2 s at 100 Hz) of gain-normalized amplitude, opened 0.2 s before the motion gate fires, minus the mean of its first 10 packets (removes each room's static multipath pattern; the main bet for cross-session accuracy), int8 = 10.4 KB. Network: subcarriers as channels, 1D convs over time: conv k5/s2 →32, conv k5/s2 →32, conv k3/s2 →64, conv k3 →64, global average pool, dense → 4 (swipe, swipe_back, palm, other). ~32.3k weights (~32 KB int8), ~1.5 M MACs/window, peak activations ~14 KB. Window figure from `fig_window()` in `tools/proposal_figures.py`.
+
 ## Open questions / next steps
 
 1. Fixed rig (phone + antenna at a set 34 cm, marked hand zone) and 3–4 sessions across times and teammates → fair leave-one-session-out test.
